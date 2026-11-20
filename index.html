@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BioLock Pro – Control de acceso facial</title>
+<meta name="description" content="BioLock Pro identifica a las personas por su rostro, abre la cerradura y registra cada acceso. Los datos biométricos se quedan dentro de la Raspberry Pi. Proyecto UFPSO Ocaña.">
+<meta property="og:title" content="BioLock Pro – Control de acceso facial">
+<meta property="og:description" content="Tu rostro abre la puerta. Tus datos biométricos no salen del dispositivo.">
+<meta name="theme-color" content="#E4E8EC">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231B1F24'/%3E%3Ccircle cx='16' cy='16' r='8' fill='none' stroke='%232D6BFF' stroke-width='3' stroke-dasharray='3 2.2'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+@font-face{font-family:"Bricolage";src:url(assets/fonts/bricolage-grotesque-latin-wght-normal.woff2) format("woff2");font-weight:200 800;font-display:swap}
+@font-face{font-family:"Instrument";src:url(assets/fonts/instrument-sans-latin-wght-normal.woff2) format("woff2");font-weight:400 700;font-display:swap}
+
+:root{
+  --wall:#E4E8EC;
+  --paper:#F6F8FA;
+  --ink:#1B1F24;
+  --muted:#4A5560;
+  --led:#2D6BFF;
+  --led-deep:#1747C7;
+  --go:#0F7A4F;
+  --go-bright:#22C58B;
+  --stop:#C9343B;
+  --stop-bright:#FF5A62;
+  --night:#0E1621;
+  --line:#C5CCD4;
+  --display:"Bricolage","Segoe UI",system-ui,sans-serif;
+  --text:"Instrument","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;scroll-padding-top:72px}
+body{background:var(--wall);color:var(--ink);font-family:var(--text);font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--display);letter-spacing:-.022em;line-height:1.06;font-weight:700}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--led);outline-offset:3px;border-radius:4px}
+.wrap{width:min(1180px,100% - 40px);margin-inline:auto}
+.skip{position:absolute;left:-999px}
+.skip:focus{left:12px;top:12px;background:#fff;padding:8px 12px;z-index:99}
+
+/* nav */
+.nav{position:sticky;top:0;z-index:50;background:rgba(228,232,236,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;gap:28px;height:60px}
+.brand{font-family:var(--display);font-weight:800;font-size:21px;letter-spacing:-.03em;text-decoration:none;display:flex;align-items:center;gap:10px;flex:none}
+.brand svg{width:26px;height:26px}
+.nav ul{display:flex;gap:22px;list-style:none;overflow-x:auto;scrollbar-width:none;margin-left:auto}
+.nav ul::-webkit-scrollbar{display:none}
+.nav a.l{font-size:15px;text-decoration:none;color:var(--muted);white-space:nowrap;padding:6px 0}
+.nav a.l:hover{color:var(--ink)}
+
+/* hero */
+.hero{padding:56px 0 72px}
+.hero .wrap{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:56px;align-items:start}
+.hero h1{font-size:clamp(40px,5.6vw,72px);font-weight:800;max-width:11.5em}
+.hero .lead{margin-top:24px;font-size:19px;color:var(--muted);max-width:34em}
+.hero .cta{margin-top:32px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;min-height:48px;padding:0 22px;border-radius:10px;font-weight:600;font-size:16px;text-decoration:none;border:2px solid var(--ink);cursor:pointer;font-family:var(--text);background:transparent;color:var(--ink)}
+.btn.solid{background:var(--ink);color:#fff}
+.btn:hover{background:var(--ink);color:#fff}
+.btn.solid:hover{background:var(--led-deep);border-color:var(--led-deep)}
+.facts{margin-top:44px;display:grid;grid-template-columns:repeat(3,auto);gap:10px 34px;justify-content:start;border-top:1px solid var(--line);padding-top:20px}
+.facts div{font-size:15px;color:var(--muted);line-height:1.35}
+.facts b{display:block;font-family:var(--display);font-size:26px;color:var(--ink);letter-spacing:-.02em}
+
+/* device */
+.stage{display:flex;flex-direction:column;align-items:center}
+.unit{position:relative;width:min(300px,78vw);background:#16191D;border-radius:26px;padding:20px 18px 18px;box-shadow:0 1px 0 #3a4048 inset,0 30px 50px -18px rgba(14,22,33,.55),0 6px 12px rgba(14,22,33,.25)}
+.unit .s{position:absolute;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#555d66,#22262b)}
+.s.a{left:10px;top:10px}.s.b{right:10px;top:10px}.s.c{left:10px;bottom:10px}.s.d{right:10px;bottom:10px}
+.cam{position:relative;width:116px;height:116px;margin:0 auto 16px;border-radius:18px;background:#0B0D10;box-shadow:0 0 0 1px #2c3238 inset}
+.ring{position:absolute;inset:0}
+.ring i{position:absolute;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:50%;background:var(--c,#1b2740);box-shadow:0 0 0 rgba(0,0,0,0);transition:background .2s,box-shadow .2s}
+.lens{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:radial-gradient(circle at 38% 32%,#4a5260 0,#10131a 38%,#05060a 70%);box-shadow:0 0 0 4px #1a1e24}
+.lens::after{content:"";position:absolute;left:30%;top:26%;width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.28)}
+.screen{position:relative;border-radius:10px;background:#0A1020;color:#fff;height:238px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 0 0 2px #05070b}
+.screen .top{display:flex;justify-content:space-between;font-size:12px;padding:8px 10px 0;color:#9fb0cc}
+.view{position:relative;flex:1;margin:6px 34px 0;border-radius:6px;background:#111a2e;display:grid;place-items:center;overflow:hidden}
+.view .idle-t{font-size:13px;color:#7d8fb0;text-align:center;padding:0 10px}
+.view svg.face{width:78%;height:auto;display:none}
+.view .box{position:absolute;inset:14% 22% 20% 22%;display:none}
+.view .box::before,.view .box::after{content:"";position:absolute;width:16px;height:16px;border:3px solid var(--go-bright)}
+.view .box::before{left:0;top:0;border-right:0;border-bottom:0}
+.view .box::after{right:0;bottom:0;border-left:0;border-top:0}
+.view .box i{position:absolute;width:16px;height:16px;border:3px solid var(--go-bright)}
+.view .box i:nth-child(1){right:0;top:0;border-left:0;border-bottom:0}
+.view .box i:nth-child(2){left:0;bottom:0;border-right:0;border-top:0}
+.view .phone{position:absolute;inset:6% 24% 4%;border:4px solid #c5cdd9;border-radius:12px;background:#1e2a45;display:none}
+.screen[data-view=face] svg.face,.screen[data-view=face] .box,.screen[data-view=phone] svg.face,.screen[data-view=phone] .box,.screen[data-view=phone] .phone{display:block}
+.screen[data-view=face] .idle-t,.screen[data-view=phone] .idle-t{display:none}
+.screen[data-view=phone] svg.face{width:56%}
+.screen[data-tone=deny] .box::before,.screen[data-tone=deny] .box::after,.screen[data-tone=deny] .box i{border-color:var(--stop-bright)}
+.banner{margin:8px 10px 10px;border-radius:8px;padding:9px 10px 8px;text-align:center;background:#1a2540;transition:background .2s}
+.banner b{display:block;font-family:var(--display);font-size:19px;letter-spacing:-.01em;line-height:1.15}
+.banner span{display:block;font-size:12.5px;color:#cbd6ea;margin-top:2px}
+.screen[data-tone=ok] .banner{background:var(--go)}
+.screen[data-tone=deny] .banner,.screen[data-tone=alarm] .banner{background:var(--stop)}
+.screen[data-tone=go] .banner{background:#27407a}
+.base{display:flex;align-items:center;justify-content:space-between;padding:16px 30px 4px}
+.led{width:14px;height:14px;border-radius:50%;background:#26302a;box-shadow:0 0 0 2px #0d0f12;transition:all .15s}
+.led.g.on{background:var(--go-bright);box-shadow:0 0 0 2px #0d0f12,0 0 14px 2px var(--go-bright)}
+.led.r.on{background:var(--stop-bright);box-shadow:0 0 0 2px #0d0f12,0 0 14px 2px var(--stop-bright)}
+.led.r{background:#33262a}
+.spk{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle,#0b0d10 0 2px,transparent 2.5px) 0 0/7px 7px,#1b1f24;box-shadow:0 0 0 2px #0d0f12}
+.lock{margin-top:18px;display:flex;align-items:center;gap:10px;font-size:15px;color:var(--muted)}
+.lock b{font-weight:600;color:var(--ink)}
+.lock .pill{display:inline-block;min-width:92px;text-align:center;padding:3px 12px;border-radius:99px;font-weight:600;font-size:14px;background:#fff;border:2px solid var(--ink);transition:all .2s}
+.lock .pill.open{background:var(--go);border-color:var(--go);color:#fff}
+.try{margin-top:22px;width:min(420px,100%)}
+.try p.t{font-weight:600;font-size:16px;margin-bottom:10px}
+.try .row{display:flex;flex-wrap:wrap;gap:8px}
+.try button{flex:1 1 auto;min-height:46px;padding:0 14px;border-radius:10px;border:2px solid var(--ink);background:#fff;font:600 15px var(--text);color:var(--ink);cursor:pointer}
+.try button:hover{background:var(--ink);color:#fff}
+.try button.ghost{border-color:var(--line);color:var(--muted);flex:0 0 auto}
+.try small{display:block;margin-top:10px;color:var(--muted);font-size:14px;line-height:1.45}
+.strikes{display:flex;gap:6px;align-items:center;margin-top:12px;font-size:14px;color:var(--muted)}
+.strikes i{width:12px;height:12px;border-radius:50%;border:2px solid var(--stop);display:inline-block}
+.strikes i.on{background:var(--stop)}
+
+/* sections */
+section{padding:92px 0}
+.sec-h{max-width:20em}
+section h2{font-size:clamp(32px,4.2vw,52px);font-weight:800}
+.paper{background:var(--paper)}
+.lede{margin-top:18px;font-size:19px;color:var(--muted);max-width:36em}
+
+/* problema */
+.prob{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:64px;align-items:start}
+.effects{border-top:2px solid var(--ink)}
+.effects li{list-style:none;display:grid;grid-template-columns:44px 1fr;gap:6px;padding:22px 0;border-bottom:1px solid var(--line);font-size:19px;line-height:1.4}
+.effects li svg{width:30px;height:30px;margin-top:2px}
+.effects small{display:block;font-size:15.5px;color:var(--muted);margin-top:4px}
+.q{margin-top:56px;padding:26px 30px;border-radius:14px;background:var(--ink);color:#fff;font-family:var(--display);font-size:clamp(21px,2.4vw,29px);line-height:1.25;letter-spacing:-.015em;font-weight:600}
+.q small{display:block;font-family:var(--text);font-size:15px;color:#aab6c6;font-weight:400;margin-bottom:8px;letter-spacing:0}
+
+/* pasos */
+.steps{margin-top:52px;position:relative;display:grid;gap:0;max-width:860px}
+.steps::before{content:"";position:absolute;left:23px;top:12px;bottom:12px;width:2px;background:var(--line)}
+.step{position:relative;display:grid;grid-template-columns:48px 1fr;gap:22px;padding:0 0 38px}
+.step:last-child{padding-bottom:0}
+.step .n{width:48px;height:48px;border-radius:50%;background:var(--wall);border:2px solid var(--ink);display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:20px;z-index:1}
+.step h3{font-size:25px;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin-top:7px}
+.step p{margin-top:6px;color:var(--muted);max-width:40em}
+.step code,.mono{font-family:ui-monospace,"Cascadia Mono",Menlo,monospace;font-size:.9em;background:#fff;border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--ink)}
+.tag{font:600 13px var(--text);padding:3px 10px;border-radius:99px;letter-spacing:0;white-space:nowrap}
+.tag.dev{background:#FFF1C9;color:#6B4A00;border:1px solid #E3C36A}
+.tag.ok{background:#D7F3E6;color:#0A5A39;border:1px solid #93D6B7}
+.after{margin-top:40px;max-width:860px;border-left:4px solid var(--stop);padding:4px 0 4px 20px}
+.after b{font-family:var(--display);font-size:21px;display:block;margin-bottom:4px}
+.after p{color:var(--muted)}
+
+/* privacidad */
+.night{background:var(--night);color:#E8EEF7}
+.night h2{color:#fff;max-width:15em}
+.night .lede{color:#9FB0C7}
+.diagram{margin-top:48px;background:#0A111B;border:1px solid #22314a;border-radius:18px;padding:18px 14px}
+.diagram svg{width:100%;height:auto;display:block}
+.diagram text{font-family:var(--text)}
+.two{margin-top:40px;display:grid;grid-template-columns:1fr 1fr;gap:28px}
+.two h3{font-size:22px;color:#fff;margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.two ul{list-style:none;color:#B7C4D8;font-size:16.5px}
+.two li{padding:9px 0;border-top:1px solid #22314a}
+.two .stay h3::before,.two .go h3::before{content:"";width:12px;height:12px;border-radius:50%;display:inline-block}
+.two .stay h3::before{background:var(--stop-bright)}
+.two .go h3::before{background:var(--go-bright)}
+.legal{margin-top:36px;color:#9FB0C7;font-size:16px;max-width:52em;border-top:1px solid #22314a;padding-top:22px}
+.legal b{color:#fff;font-weight:600}
+
+/* hardware */
+.hw{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:56px;align-items:start}
+.hw figure img{width:100%;height:auto;display:block;border-radius:16px;box-shadow:0 16px 40px -20px rgba(14,22,33,.5)}
+.hw figcaption{margin-top:12px;font-size:14.5px;color:var(--muted)}
+dl.parts{margin-top:30px;border-top:2px solid var(--ink)}
+dl.parts div{display:grid;grid-template-columns:150px 1fr;gap:18px;padding:18px 0;border-bottom:1px solid var(--line)}
+dl.parts dt{font-family:var(--display);font-weight:700;font-size:19px;letter-spacing:-.01em}
+dl.parts dd{color:var(--muted);font-size:16.5px;line-height:1.5}
+dl.parts dd b{color:var(--ink);font-weight:600}
+
+/* plataforma */
+.plat{margin-top:48px;display:grid;grid-template-columns:1.25fr 1fr;gap:24px}
+.panel{background:#fff;border-radius:16px;padding:30px 30px 28px;border:1px solid var(--line)}
+.panel.alt{background:var(--ink);color:#fff;border-color:var(--ink)}
+.panel h3{font-size:27px;margin-bottom:6px}
+.panel .sub{color:var(--muted);font-size:16px}
+.panel.alt .sub{color:#aab6c6}
+.mods{margin-top:20px;display:flex;flex-wrap:wrap;gap:8px}
+.mods span{font-size:14.5px;border:1px solid var(--line);border-radius:99px;padding:4px 12px;background:var(--paper)}
+.alt .items{margin-top:20px;list-style:none}
+.alt .items li{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:11px 0;border-top:1px solid #38414c;font-size:16px}
+.stack{margin-top:26px;padding-top:22px;border-top:1px solid var(--line);font-size:15.5px;color:var(--muted)}
+.stack b{color:var(--ink);font-weight:600}
+.secnote{margin-top:24px;max-width:50em;color:var(--muted)}
+
+/* estado */
+.state{margin-top:48px;display:grid;grid-template-columns:1fr 1fr;gap:0;border:2px solid var(--ink);border-radius:16px;overflow:hidden;background:#fff}
+.state>div{padding:28px 30px}
+.state>div+div{border-left:2px solid var(--ink)}
+.state h3{font-size:24px;margin-bottom:12px}
+.state ul{list-style:none}
+.state li{display:flex;gap:12px;padding:9px 0;border-top:1px solid #E1E6EB;font-size:16.5px;line-height:1.4}
+.state li::before{content:"";flex:none;width:12px;height:12px;border-radius:50%;margin-top:6px}
+.state .now li::before{background:var(--go-bright)}
+.state .next li::before{border:2px solid #C79A18;background:#fff}
+.meas{margin-top:26px;display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:2px solid var(--ink)}
+.meas div{padding:20px 22px 6px 0}
+.meas b{display:block;font-family:var(--display);font-size:46px;letter-spacing:-.03em;line-height:1}
+.meas span{display:block;margin-top:6px;font-size:15.5px;color:var(--muted)}
+.meas p{grid-column:1/-1;font-size:14.5px;color:var(--muted);padding:12px 0 0;max-width:56em}
+
+/* equipo */
+.team{margin-top:44px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px;max-width:860px}
+.person{border-top:3px solid var(--ink);padding-top:16px}
+.person h3{font-size:28px}
+.person .r{color:var(--led-deep);font-weight:600;margin-top:4px}
+.person p{margin-top:8px;color:var(--muted)}
+.where{margin-top:44px;max-width:44em;color:var(--muted)}
+.tech{margin-top:28px;display:flex;flex-wrap:wrap;gap:8px;max-width:50em}
+.tech span{font-size:14.5px;border:1px solid var(--line);border-radius:6px;padding:3px 11px;background:var(--paper)}
+footer{background:var(--ink);color:#C9D2DE;padding:44px 0 56px;font-size:15px}
+footer b{color:#fff;font-family:var(--display);font-size:20px;font-weight:700;display:block;margin-bottom:10px;letter-spacing:-.01em}
+footer p{max-width:52em;line-height:1.55}
+footer p+p{margin-top:10px;color:#93A0B1}
+
+.logs{margin-top:56px;display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.panel.lg{padding:22px 24px}
+@media (max-width:700px){.logs{grid-template-columns:1fr;margin-top:40px}}
+/* ring animations */
+@keyframes breathe{0%,100%{opacity:.35}50%{opacity:1}}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:.15}}
+
+@media (max-width:960px){
+  .hero .wrap,.prob,.hw,.plat,.state{grid-template-columns:1fr}
+  .hero .wrap{gap:44px}
+  .state>div+div{border-left:0;border-top:2px solid var(--ink)}
+  .two{grid-template-columns:1fr}
+  .prob{gap:36px}
+  section{padding:68px 0}
+  .nav ul{gap:18px}
+}
+@media (max-width:560px){
+  .facts{grid-template-columns:1fr 1fr;gap:18px}
+  .meas{grid-template-columns:1fr}
+  .team{grid-template-columns:1fr}
+  dl.parts div{grid-template-columns:1fr;gap:4px}
+  .nav .wrap{gap:14px}
+  .brand span{display:none}
+  body{font-size:16.5px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .ring i{transition:none !important;animation:none !important}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#contenido">Saltar al contenido</a>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="BioLock Pro, inicio">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#1B1F24"/><circle cx="16" cy="16" r="8" fill="none" stroke="#2D6BFF" stroke-width="3" stroke-dasharray="3 2.2"/><circle cx="16" cy="16" r="3" fill="#fff"/></svg>
+      <span>BioLock Pro</span>
+    </a>
+    <ul>
+      <li><a class="l" href="#problema">El problema</a></li>
+      <li><a class="l" href="#como">Cómo funciona</a></li>
+      <li><a class="l" href="#privacidad">Privacidad</a></li>
+      <li><a class="l" href="#equipo-fisico">El equipo</a></li>
+      <li><a class="l" href="#plataforma">Panel y app</a></li>
+      <li><a class="l" href="#estado">Estado</a></li>
+      <li><a class="l" href="#autores">Autores</a></li>
+    </ul>
+  </div>
+</header>
+
+<main id="contenido">
+<!-- HERO -->
+<section class="hero" id="top" style="padding-top:56px">
+  <div class="wrap">
+    <div>
+      <h1>Tu rostro abre la puerta. Tus datos biométricos no salen del dispositivo.</h1>
+      <p class="lead">BioLock Pro es un control de acceso con reconocimiento facial hecho con Raspberry Pi y Arduino. Reconoce a quien está autorizado, abre la cerradura y guarda quién entró y cuándo. Ninguna foto de registro ni vector facial viaja a la nube.</p>
+      <div class="cta">
+        <a class="btn solid" href="#como">Ver cómo funciona</a>
+        <a class="btn" href="#privacidad">Qué datos viajan</a>
+      </div>
+      <div class="facts" aria-label="Datos del prototipo">
+        <div><b>22 FPS</b>video procesado en la Raspberry Pi</div>
+        <div><b>1,8 s</b>de decisión en promedio</div>
+        <div><b>0 rostros</b>guardados en la nube</div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="unit" role="img" aria-label="Simulación de la unidad BioLock Pro en la pared">
+        <i class="s a"></i><i class="s b"></i><i class="s c"></i><i class="s d"></i>
+        <div class="cam"><div class="ring" id="ring"></div><div class="lens"></div></div>
+        <div class="screen" id="screen" data-view="none" data-tone="idle">
+          <div class="top"><span id="clock">10:30</span><span>Wi-Fi</span></div>
+          <div class="view">
+            <span class="idle-t">Acércate a la cámara</span>
+            <svg class="face" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="38" r="20" fill="#8da2c6"/><path d="M12 100c2-26 18-38 38-38s36 12 38 38z" fill="#8da2c6"/></svg>
+            <div class="phone"></div>
+            <div class="box"><i></i><i></i></div>
+          </div>
+          <div class="banner"><b id="bTitle">BioLock Pro</b><span id="bSub">Listo</span></div>
+        </div>
+        <div class="base"><span class="led g" id="ledG"></span><span class="spk"></span><span class="led r" id="ledR"></span></div>
+      </div>
+      <div class="lock" aria-live="polite">Cerradura <span class="pill" id="lockPill">cerrada</span></div>
+
+      <div class="try">
+        <p class="t">Pruébalo: elige quién se para frente a la puerta</p>
+        <div class="row">
+          <button type="button" data-s="ok">Usuario registrado</button>
+          <button type="button" data-s="unknown">Persona desconocida</button>
+          <button type="button" data-s="spoof">Foto en un celular</button>
+          <button type="button" class="ghost" data-s="reset">Reiniciar</button>
+        </div>
+        <div class="strikes" aria-live="polite"><span>Intentos fallidos seguidos</span><i></i><i></i><i></i></div>
+        <small>Simulación con valores de ejemplo. Tres intentos fallidos seguidos activan la alarma. La detección de vida (rechazar fotos y videos) está en desarrollo.</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap logs" id="logs-wrap">
+    <div class="panel lg">
+      <h3 style="font-size:20px">Se guarda dentro de la Raspberry Pi</h3>
+      <p class="sub" style="font-size:14.5px;margin:4px 0 10px">Reconocimiento y registro local.</p>
+      <ul id="logLocal" style="list-style:none;font-size:14.5px;line-height:1.45"><li style="color:var(--muted)">Todavía no hay eventos. Prueba un botón.</li></ul>
+    </div>
+    <div class="panel lg">
+      <h3 style="font-size:20px">Se envía a la nube</h3>
+      <p class="sub" style="font-size:14.5px;margin:4px 0 10px">Solo el evento y el identificador del usuario.</p>
+      <ul id="logCloud" style="list-style:none;font-size:14.5px;line-height:1.45"><li style="color:var(--muted)">Todavía no hay eventos. Prueba un botón.</li></ul>
+    </div>
+  </div>
+</section>
+
+<!-- PROBLEMA -->
+<section id="problema" class="paper">
+  <div class="wrap">
+    <div class="prob">
+      <div>
+        <h2 class="sec-h">Las llaves se prestan, se copian y se pierden</h2>
+        <p class="lede">En muchas instituciones educativas y pequeñas empresas, la puerta de un laboratorio o una oficina se controla con llaves o tarjetas. Nadie sabe con certeza quién entró ni cuándo. Los sistemas biométricos comerciales existen, pero su costo los deja fuera de estos presupuestos.</p>
+      </div>
+      <ul class="effects">
+        <li>
+          <svg viewBox="0 0 30 30" fill="none" stroke="#C9343B" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="15" cy="15" r="11"/><path d="M9 21 21 9"/></svg>
+          <span>Accesos no autorizados, sin registro ni trazabilidad<small>Si una llave circula, cualquiera puede entrar y no queda rastro.</small></span>
+        </li>
+        <li>
+          <svg viewBox="0 0 30 30" fill="none" stroke="#C9343B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="20" height="14" rx="2"/><path d="M10 11V8a5 5 0 0 1 10 0"/></svg>
+          <span>Robo y pérdida de bienes en instalaciones institucionales<small>Los equipos de laboratorio y oficina quedan expuestos.</small></span>
+        </li>
+        <li>
+          <svg viewBox="0 0 30 30" fill="none" stroke="#C9343B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6h18v18H6zM11 12h8M11 17h8M11 21h4"/></svg>
+          <span>No se pueden auditar los accesos ni generar reportes de seguridad<small>Sin registro automático, no hay datos para revisar.</small></span>
+        </li>
+      </ul>
+    </div>
+    <div class="q">
+      <small>La pregunta que guía el proyecto</small>
+      ¿Es posible desarrollar un sistema biométrico facial de bajo costo, autónomo y con administración remota, usando Raspberry Pi y Arduino, accesible para instituciones con recursos limitados?
+    </div>
+  </div>
+</section>
+
+<!-- COMO FUNCIONA -->
+<section id="como">
+  <div class="wrap">
+    <h2 class="sec-h">Qué pasa cuando alguien llega a la puerta</h2>
+    <p class="lede">Todo el proceso corre dentro del dispositivo. Funciona aunque no haya internet.</p>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><div>
+        <h3>Detecta que hay alguien</h3>
+        <p>Un sensor de movimiento PIR avisa que una persona está frente a la puerta. El anillo de luz cambia de color y la cámara empieza a analizar.</p>
+      </div></div>
+      <div class="step"><div class="n">2</div><div>
+        <h3>Encuentra el rostro</h3>
+        <p>El modelo <code>YuNet</code> localiza la cara en el video. La cámara Pi Camera Module 3 entrega una imagen reducida para el análisis y otra de alta resolución para las fotos.</p>
+      </div></div>
+      <div class="step"><div class="n">3</div><div>
+        <h3>Lo compara con los usuarios registrados</h3>
+        <p>El modelo <code>SFace</code> convierte el rostro en un vector de 128 números y lo compara con los vectores guardados en el dispositivo. Acepta solo si la similitud supera 0,55 en dos cuadros seguidos.</p>
+      </div></div>
+      <div class="step"><div class="n">4</div><div>
+        <h3>Comprueba que sea una persona real <span class="tag dev">En desarrollo</span></h3>
+        <p>Antes de abrir, el sistema pedirá un reto corto, como girar la cabeza, para rechazar fotos y videos mostrados en un celular.</p>
+      </div></div>
+      <div class="step"><div class="n">5</div><div>
+        <h3>Abre, avisa y registra</h3>
+        <p>El Arduino activa el relé que libera la cerradura, enciende el anillo en verde y suena el aviso. La Raspberry Pi guarda el evento y lo envía a la nube con el identificador del usuario.</p>
+      </div></div>
+    </div>
+    <div class="after">
+      <b>Si el rostro no está registrado</b>
+      <p>El acceso se niega con luz roja y sonido, y queda guardado como intento fallido. Después de tres intentos seguidos se guarda la foto del intruso, suena la alarma y el administrador recibe una alerta.</p>
+    </div>
+  </div>
+</section>
+
+<!-- PRIVACIDAD -->
+<section id="privacidad" class="night">
+  <div class="wrap">
+    <h2>Lo biométrico se queda dentro de la Raspberry Pi</h2>
+    <p class="lede">Un rostro es un dato sensible. Por eso el sistema separa lo que identifica a una persona de lo que la institución necesita consultar.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1100 360" role="img" aria-labelledby="dgT dgD">
+        <title id="dgT">Qué queda en el dispositivo y qué viaja a la nube</title>
+        <desc id="dgD">Dentro del dispositivo están las fotos de registro, los vectores faciales y el reconocimiento. Hacia la nube solo viajan el identificador del usuario, el tipo de evento, la hora y la zona. En la nube están la API, la base de datos, el panel web y la aplicación móvil.</desc>
+        <defs>
+          <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1 1 9 5 1 9z" fill="#22C58B"/></marker>
+        </defs>
+        <rect x="14" y="14" width="456" height="332" rx="16" fill="#0E1B2E" stroke="#FF5A62" stroke-width="2" stroke-dasharray="9 7"/>
+        <text x="34" y="46" fill="#FF8A90" font-size="17" font-weight="700">Dentro del dispositivo (Raspberry Pi)</text>
+        <g font-size="16" fill="#E8EEF7">
+          <rect x="34" y="66" width="190" height="56" rx="10" fill="#16263D"/><text x="50" y="100">Fotos de registro</text>
+          <rect x="246" y="66" width="200" height="56" rx="10" fill="#16263D"/><text x="262" y="100">Vectores faciales</text>
+          <rect x="34" y="140" width="412" height="56" rx="10" fill="#16263D"/><text x="50" y="174">Reconocimiento con YuNet y SFace</text>
+          <rect x="34" y="214" width="412" height="56" rx="10" fill="#16263D"/><text x="50" y="248">Eventos guardados en la base local (SQLite)</text>
+        </g>
+        <text x="34" y="306" fill="#9FB0C7" font-size="14.5">Nombre y rostro se asocian solo aquí.</text>
+        <text x="34" y="327" fill="#9FB0C7" font-size="14.5">Nada de esto sale del dispositivo.</text>
+
+        <line x1="470" y1="180" x2="610" y2="180" stroke="#22C58B" stroke-width="3" marker-end="url(#ar)"/>
+        <rect x="486" y="84" width="108" height="192" rx="12" fill="none"/>
+        <text x="540" y="130" fill="#22C58B" font-size="14.5" text-anchor="middle" font-weight="700">Solo viaja</text>
+        <g fill="#B7F0D8" font-size="14" text-anchor="middle">
+          <text x="540" y="156">usuario_id</text>
+          <text x="540" y="204">tipo de evento</text>
+          <text x="540" y="226">hora y zona</text>
+        </g>
+        <text x="540" y="262" fill="#22C58B" font-size="13" text-anchor="middle">por HTTPS</text>
+
+        <g font-size="16" fill="#E8EEF7">
+          <rect x="622" y="14" width="464" height="332" rx="16" fill="#0E1B2E" stroke="#22C58B" stroke-width="2"/>
+          <text x="642" y="46" fill="#6EE0B3" font-size="17" font-weight="700">En la nube</text>
+          <rect x="642" y="66" width="424" height="56" rx="10" fill="#16263D"/><text x="658" y="100">API con token propio por dispositivo</text>
+          <rect x="642" y="140" width="424" height="56" rx="10" fill="#16263D"/><text x="658" y="174">Base de datos PostgreSQL (sin biometría)</text>
+          <rect x="642" y="214" width="200" height="56" rx="10" fill="#16263D"/><text x="658" y="248">Panel web</text>
+          <rect x="866" y="214" width="200" height="56" rx="10" fill="#16263D"/><text x="882" y="248">App móvil</text>
+        </g>
+        <text x="642" y="306" fill="#9FB0C7" font-size="14.5">Historial, usuarios, alarmas y reportes.</text>
+        <text x="642" y="327" fill="#9FB0C7" font-size="14.5">Sin fotos de registro ni vectores faciales.</text>
+      </svg>
+    </div>
+
+    <div class="two">
+      <div class="stay">
+        <h3>Nunca sale del dispositivo</h3>
+        <ul>
+          <li>Las fotos de registro de cada usuario</li>
+          <li>Los vectores faciales con los que se reconoce</li>
+          <li>Los respaldos biométricos: se guardan dentro de la Pi</li>
+        </ul>
+      </div>
+      <div class="go">
+        <h3>Lo que sí llega a la nube</h3>
+        <ul>
+          <li>El identificador del usuario, no su rostro</li>
+          <li>El tipo de evento: acceso, intento fallido o alarma</li>
+          <li>La foto de un intruso tras una alarma: 7 días en el dispositivo y 30 en el servidor</li>
+        </ul>
+      </div>
+    </div>
+    <p class="legal"><b>Pensado para la Ley 1581 de 2012 (Habeas Data) y el Decreto 1377 de 2013.</b> La biometría es un dato sensible: el registro exige autorización explícita, el uso es voluntario y quien no la autorice puede entrar con un PIN personal. Los registros de acceso no se pueden modificar una vez creados.</p>
+  </div>
+</section>
+
+<!-- EQUIPO FISICO -->
+<section id="equipo-fisico">
+  <div class="wrap">
+    <div class="hw">
+      <figure>
+        <img src="assets/carcasa-concepto.jpg" alt="Concepto de la unidad BioLock Pro en la pared: cámara con anillo de luz azul, pantalla táctil, luces verde y roja, y vista interior con la Raspberry Pi y el Arduino" width="774" height="658">
+        <figcaption>Concepto de la carcasa mural. Es una imagen de referencia, no el prototipo final.</figcaption>
+      </figure>
+      <div>
+        <h2>Componentes comerciales, fáciles de conseguir</h2>
+        <p class="lede">Todo el hardware se compra en Colombia y el software es libre o gratuito, sin licencias pagas.</p>
+        <dl class="parts">
+          <div><dt>Cerebro</dt><dd><b>Raspberry Pi 4</b> (4 GB) con <b>Pi Camera Module 3</b>. Ahí corren la detección, el reconocimiento y la base local.</dd></div>
+          <div><dt>Control</dt><dd><b>Arduino Uno R3</b> con módulo relé de 5 V. Maneja la cerradura, el anillo de luz, el sensor PIR, el zumbador y los LED verde y rojo.</dd></div>
+          <div><dt>Interfaz</dt><dd>Pantalla táctil de <b>3,5 pulgadas</b> (480 × 320) y anillo de <b>12 LED NeoPixel</b> que muestra el estado de un vistazo.</dd></div>
+          <div><dt>Cerradura</dt><dd>Solenoide de 12 V, diseñado como <b>Fail-Secure</b>: sin energía queda cerrado. Una salida de emergencia con batería propia está en desarrollo.</dd></div>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PLATAFORMA -->
+<section id="plataforma" class="paper">
+  <div class="wrap">
+    <h2 class="sec-h">Se administra desde el navegador o el celular</h2>
+    <p class="lede">El dispositivo, el panel y la aplicación se comunican por medio de una API en la nube. No se conectan directamente entre sí.</p>
+    <div class="plat">
+      <div class="panel">
+        <h3>Panel web</h3>
+        <p class="sub">Para el administrador de la institución. Ya está desplegado y probado con datos reales.</p>
+        <div class="mods" aria-label="Módulos del panel">
+          <span>Inicio</span><span>Usuarios</span><span>Roles y permisos</span><span>Zonas</span><span>Horarios</span><span>Dispositivos</span><span>Historial de accesos</span><span>Intentos fallidos</span><span>Alarmas</span><span>Reportes</span><span>Auditoría</span>
+        </div>
+        <div class="stack"><b>Cómo está hecho:</b> Angular, API en NestJS, PostgreSQL 16 y Docker. Sesiones con JWT, contraseñas con bcrypt y roles con permisos.</div>
+      </div>
+      <div class="panel alt">
+        <h3>App móvil Android</h3>
+        <p class="sub">Para atender alertas desde cualquier lugar.</p>
+        <ul class="items">
+          <li>Inicio de sesión <span class="tag ok">Funciona</span></li>
+          <li>Estado del dispositivo y resumen del día <span class="tag ok">Funciona</span></li>
+          <li>Historial de accesos e intentos <span class="tag ok">Funciona</span></li>
+          <li>Alertas de alarma <span class="tag ok">Funciona</span></li>
+          <li>Notificación con foto del intruso <span class="tag dev">En desarrollo</span></li>
+          <li>Apertura remota con confirmación <span class="tag dev">En desarrollo</span></li>
+        </ul>
+      </div>
+    </div>
+    <p class="secnote">Cada acción administrativa queda en un registro de auditoría. La base de datos rechaza cualquier intento de modificar o borrar un acceso ya registrado.</p>
+  </div>
+</section>
+
+<!-- ESTADO -->
+<section id="estado">
+  <div class="wrap">
+    <h2 class="sec-h">Qué funciona hoy y qué sigue</h2>
+    <p class="lede">Es un prototipo en construcción. Aquí está lo que ya probamos y lo que falta.</p>
+    <div class="state">
+      <div class="now">
+        <h3>Funcionando</h3>
+        <ul>
+          <li>Reconocimiento facial en la Raspberry Pi, con pantalla táctil</li>
+          <li>Anillo de luz, LED, zumbador y detección de presencia</li>
+          <li>Alarma tras tres intentos fallidos</li>
+          <li>Registro de usuarios desde la pantalla del dispositivo</li>
+          <li>Envío de eventos a la nube, con cola si se cae el internet</li>
+          <li>Panel web y app móvil conectados a la API</li>
+        </ul>
+      </div>
+      <div class="next">
+        <h3>En desarrollo</h3>
+        <ul>
+          <li>Detección de vida contra fotos y videos</li>
+          <li>Salida de emergencia con batería independiente</li>
+          <li>Botón interior para registrar la salida</li>
+          <li>Menú de administración con rostro y PIN de respaldo</li>
+          <li>Apertura remota y foto del intruso en la app</li>
+          <li>Carcasa impresa en 3D</li>
+        </ul>
+      </div>
+    </div>
+    <div class="meas">
+      <div><b>22 FPS</b><span>cuadros por segundo del video (criterio: 15 o más)</span></div>
+      <div><b>1,8 s</b><span>tiempo medio de decisión (criterio: 3 s o menos)</span></div>
+      <div><b>1 s</b><span>de apertura de la cerradura, configurable</span></div>
+      <p>Mediciones preliminares. Las tasas de falsa aceptación y falso rechazo se están validando con un protocolo de pruebas; los objetivos son 1 % o menos y 5 % o menos.</p>
+    </div>
+  </div>
+</section>
+
+<!-- AUTORES -->
+<section id="autores" class="paper">
+  <div class="wrap">
+    <h2 class="sec-h">Quiénes lo hicieron</h2>
+    <div class="team">
+      <div class="person">
+        <h3>Kevin Delgado</h3>
+        <div class="r">Líder del proyecto</div>
+        <p>Hardware, inteligencia artificial, firmware, aplicación móvil e integración del sistema completo.</p>
+      </div>
+      <div class="person">
+        <h3>Jefferson Alvarez</h3>
+        <div class="r">Desarrollo de software</div>
+        <p>API en la nube, base de datos, infraestructura y despliegue del panel web.</p>
+      </div>
+    </div>
+    <p class="where">Estudiantes de Ingeniería de Sistemas de la Universidad Francisco de Paula Santander Ocaña, Facultad de Ingenierías. Proyecto Integrador II.</p>
+    <div class="tech" aria-label="Tecnologías">
+      <span>Python</span><span>OpenCV</span><span>YuNet</span><span>SFace</span><span>Raspberry Pi OS</span><span>Arduino</span><span>FastAPI</span><span>SQLite</span><span>NestJS</span><span>Angular</span><span>PostgreSQL</span><span>Docker</span><span>React Native</span><span>Expo</span>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <b>BioLock Pro</b>
+    <p>Sistema de control de acceso biométrico facial de bajo costo con Raspberry Pi y Arduino, procesamiento local de datos biométricos y administración remota web y móvil.</p>
+    <p>Presentado por primera vez en la Feria de Ciencia y Tecnología UFPSO, categoría Master (1 de junio de 2026). Universidad Francisco de Paula Santander Ocaña, Norte de Santander, Colombia.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var ring=document.getElementById('ring'), dots=[], N=12, R=40;
+  for(var i=0;i<N;i++){
+    var d=document.createElement('i'), a=(i/N)*2*Math.PI-Math.PI/2;
+    d.style.left=(58+R*Math.cos(a))+'px'; d.style.top=(58+R*Math.sin(a))+'px';
+    ring.appendChild(d); dots.push(d);
+  }
+  var reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var screen=document.getElementById('screen'), bT=document.getElementById('bTitle'), bS=document.getElementById('bSub');
+  var ledG=document.getElementById('ledG'), ledR=document.getElementById('ledR');
+  var pill=document.getElementById('lockPill'), clock=document.getElementById('clock');
+  var strikesEls=document.querySelectorAll('.strikes i');
+  var logL=document.getElementById('logLocal'), logC=document.getElementById('logCloud');
+  var timers=[], chase=null, fails=0, hasLog=false;
+
+  function tick(){var n=new Date();clock.textContent=n.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit',hour12:false});}
+  tick(); setInterval(tick,20000);
+
+  function later(fn,ms){timers.push(setTimeout(fn,ms));}
+  function clearAll(){timers.forEach(clearTimeout);timers=[];if(chase){clearInterval(chase);chase=null;}}
+  function setRing(color,mode){
+    if(chase){clearInterval(chase);chase=null;}
+    dots.forEach(function(d){d.style.animation='none';d.style.background=color;d.style.boxShadow=(color==='#1b2740')?'none':'0 0 10px 1px '+color;d.style.opacity=1;});
+    if(mode==='breathe'&&!reduce){dots.forEach(function(d){d.style.animation='breathe 3.2s ease-in-out infinite';});}
+    if(mode==='blink'&&!reduce){dots.forEach(function(d){d.style.animation='blink .5s steps(1) infinite';});}
+    if(mode==='chase'){
+      var k=0;
+      var step=function(){dots.forEach(function(d,i){var diff=(k-i+N)%N;d.style.opacity=diff<4?1-diff*0.22:0.15;});k=(k+1)%N;};
+      step(); if(!reduce){chase=setInterval(step,90);}
+    }
+  }
+  function setLeds(g,r){ledG.classList.toggle('on',!!g);ledR.classList.toggle('on',!!r);}
+  function ui(view,tone,title,sub){
+    screen.setAttribute('data-view',view); screen.setAttribute('data-tone',tone);
+    bT.textContent=title; bS.textContent=sub;
+  }
+  function setStrikes(){strikesEls.forEach(function(e,i){e.classList.toggle('on',i<fails);});}
+  function lock(open){pill.textContent=open?'abierta':'cerrada';pill.classList.toggle('open',open);}
+
+  function idle(){
+    clearAll(); setRing('#2D6BFF','breathe'); setLeds(false,false); lock(false);
+    ui('none','idle','BioLock Pro','Listo para usar');
+  }
+  function presence(){ setRing('#9DB8FF','solid'); ui('face','go','Persona detectada','Mira a la cámara'); }
+  function processing(){ setRing('#5B8BFF','chase'); ui('face','go','Verificando…','Comparando con usuarios registrados'); }
+
+  function addLog(local,cloud){
+    if(!hasLog){logL.innerHTML='';logC.innerHTML='';hasLog=true;}
+    var t=new Date().toLocaleTimeString('es-CO',{hour12:false});
+    function mk(txt){var li=document.createElement('li');li.style.cssText='padding:7px 0;border-top:1px solid #E1E6EB';li.innerHTML=txt;return li;}
+    logL.insertBefore(mk('<b>'+t+'</b> '+local),logL.firstChild);
+    logC.insertBefore(mk('<b>'+t+'</b> <span class="mono">'+cloud+'</span>'),logC.firstChild);
+    while(logL.children.length>4)logL.removeChild(logL.lastChild);
+    while(logC.children.length>4)logC.removeChild(logC.lastChild);
+  }
+  function deny(title,sub,local,cloud){
+    setRing('#FF5A62','solid'); setLeds(false,true); ui(screen.getAttribute('data-view'),'deny',title,sub);
+    fails++; setStrikes();
+    addLog(local,cloud);
+    if(fails>=3){
+      later(function(){
+        setRing('#FF5A62','blink'); ui('none','alarm','Alarma','3 intentos fallidos. Foto del intruso guardada.');
+        addLog('Foto del intruso guardada en la Pi (se conserva 7 días)','{tipo: "alarma", usuario_id: null}');
+        fails=0; setStrikes();
+        later(idle,4500);
+      },2200);
+    } else { later(idle,3000); }
+  }
+
+  function run(s){
+    clearAll();
+    if(s==='reset'){fails=0;setStrikes();idle();return;}
+    presence();
+    later(processing,900);
+    if(s==='ok'){
+      later(function(){
+        fails=0;setStrikes();
+        setRing('#22C58B','solid'); setLeds(true,false); lock(true);
+        ui('face','ok','Acceso permitido','Bienvenido, Kevin');
+        addLog('Rostro reconocido: Kevin Delgado · similitud 0,68 (umbral 0,55)','{tipo: "permitido", usuario_id: 1, zona: "Laboratorio"}');
+        later(function(){lock(false);},3500);
+        later(idle,4200);
+      },2400);
+    } else if(s==='unknown'){
+      later(function(){deny('Acceso negado','Rostro no registrado','Rostro sin coincidencia · similitud 0,31','{tipo: "denegado", usuario_id: null}');},2400);
+    } else if(s==='spoof'){
+      later(function(){
+        screen.setAttribute('data-view','phone'); bT.textContent='Reto de vida'; bS.textContent='Gira la cabeza hacia un lado';
+      },2200);
+      later(function(){
+        screen.setAttribute('data-view','phone');
+        deny('Acceso negado','No se detectó una persona real','Rostro coincide, pero falló el reto de vida (foto en pantalla)','{tipo: "denegado", usuario_id: null}');
+      },4300);
+    }
+  }
+  document.querySelectorAll('.try button').forEach(function(b){b.addEventListener('click',function(){run(b.getAttribute('data-s'));});});
+  idle();
+})();
+</script>
+</body>
+</html>
